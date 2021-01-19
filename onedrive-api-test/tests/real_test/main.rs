@@ -18,38 +18,13 @@ use serde_json::json;
 mod util;
 use util::*;
 
-macro_rules! define_tests {
-    ($($(#[$meta:meta])* $f:ident;)*) => {
-        mod wrapper {
-            $(
-                #[tokio::test]
-                $(#[$meta])*
-                async fn $f() {
-                    let one_drive = super::util::get_logined_onedrive().await;
-                    super::$f(&one_drive).await;
-                }
-            )*
-        }
-    };
-}
+use util::get_logined_onedrive as onedrive;
 
-define_tests! {
-    test_get_drive;
-    test_get_item;
-    test_folder_create_and_list_children;
-    test_folder_create_and_delete;
-    test_folder_create_and_update;
-    test_file_upload_small_and_move;
-    test_file_upload_small_and_copy;
-    test_file_upload_session;
-    #[ignore] test_track_changes;
+// 3 requests
+#[tokio::test]
+async fn test_get_drive() {
+    let one_drive = onedrive().await;
 
-    test_auth_error;
-    test_get_drive_error_unauthorized;
-}
-
-/// 3 requests
-async fn test_get_drive(one_drive: &OneDrive) {
     // #1
     let drive1 = one_drive.get_drive().await.expect("Cannot get drive #1");
     assert!(drive1.quota.is_some());
@@ -81,8 +56,11 @@ async fn test_get_drive(one_drive: &OneDrive) {
     );
 }
 
-/// 3 requests
-async fn test_get_item(one_drive: &OneDrive) {
+// 3 requests
+#[tokio::test]
+async fn test_get_item() {
+    let one_drive = onedrive().await;
+
     // #1
     let item_by_path = one_drive
         .get_item(ItemLocation::from_path("/").unwrap())
@@ -113,8 +91,11 @@ async fn test_get_item(one_drive: &OneDrive) {
     // So we don't test it.
 }
 
-/// 7 requests
-async fn test_folder_create_and_list_children(one_drive: &OneDrive) {
+// 7 requests
+#[tokio::test]
+async fn test_folder_create_and_list_children() {
+    let one_drive = onedrive().await;
+
     fn to_names(v: Vec<DriveItem>) -> Vec<String> {
         let mut v = v
             .into_iter()
@@ -234,8 +215,11 @@ async fn test_folder_create_and_list_children(one_drive: &OneDrive) {
     one_drive.delete(container_loc).await.unwrap();
 }
 
-/// 4 requests
-async fn test_folder_create_and_delete(one_drive: &OneDrive) {
+// 4 requests
+#[tokio::test]
+async fn test_folder_create_and_delete() {
+    let one_drive = onedrive().await;
+
     let folder_name = gen_filename();
     let folder_loc = rooted_location(folder_name);
     let invalid_path = format!("/{}/invalid", folder_name.as_str());
@@ -271,8 +255,11 @@ async fn test_folder_create_and_delete(one_drive: &OneDrive) {
     one_drive.delete(folder_loc).await.unwrap();
 }
 
-/// 4 requests
-async fn test_folder_create_and_update(one_drive: &OneDrive) {
+// 4 requests
+#[tokio::test]
+async fn test_folder_create_and_update() {
+    let one_drive = onedrive().await;
+
     const FAKE_TIME: &str = "2017-01-01T00:00:00Z";
 
     let folder_name = gen_filename();
@@ -320,8 +307,11 @@ async fn test_folder_create_and_update(one_drive: &OneDrive) {
     one_drive.delete(folder_loc).await.unwrap();
 }
 
-/// 6 requests
+// 6 requests
+#[tokio::test]
 async fn test_file_upload_small_and_move(one_drive: &OneDrive) {
+    let one_drive = onedrive().await;
+
     // Different length, since we use `size` to check if replacement is successful.
     const CONTENT1: &[u8] = b"aaa";
     const CONTENT2: &[u8] = b"bbbbbb";
@@ -380,8 +370,11 @@ async fn test_file_upload_small_and_move(one_drive: &OneDrive) {
     one_drive.delete(file2_loc).await.unwrap();
 }
 
-/// 5 requests
+// 5 requests
+#[tokio::test]
 async fn test_file_upload_small_and_copy(one_drive: &OneDrive) {
+    let one_drive = onedrive().await;
+
     const CONTENT: &[u8] = b"hello, copy";
     const WAIT_TIME: std::time::Duration = std::time::Duration::from_millis(1000);
     const MAX_WAIT_COUNT: usize = 5;
@@ -427,8 +420,11 @@ async fn test_file_upload_small_and_copy(one_drive: &OneDrive) {
     one_drive.delete(loc1).await.unwrap();
 }
 
-/// 8 requests
-async fn test_file_upload_session(one_drive: &OneDrive) {
+// 8 requests
+#[tokio::test]
+async fn test_file_upload_session() {
+    let one_drive = onedrive().await;
+
     type Range = std::ops::Range<usize>;
     const CONTENT: &[u8] = b"12345678";
     const CONTENT_LEN: u64 = CONTENT.len() as u64;
@@ -505,8 +501,13 @@ async fn test_file_upload_session(one_drive: &OneDrive) {
     one_drive.delete(item_loc).await.unwrap();
 }
 
-/// 8 requests
-async fn test_track_changes(one_drive: &OneDrive) {
+// 8 requests
+// This test fetch all changes from root folder, which may contains lots of files and take lots of time.
+#[tokio::test]
+#[ignore]
+async fn test_track_changes() {
+    let one_drive = onedrive().await;
+
     use std::collections::HashSet;
 
     let container_name = gen_filename();
@@ -605,7 +606,8 @@ async fn test_track_changes(one_drive: &OneDrive) {
     one_drive.delete(container_loc).await.unwrap();
 }
 
-async fn test_auth_error(_: &OneDrive) {
+#[tokio::test]
+async fn test_auth_error() {
     let auth = Auth::new(
         "11111111-2222-3333-4444-555555555555".to_owned(),
         Permission::new_read().offline_access(true),
@@ -632,7 +634,8 @@ async fn test_auth_error(_: &OneDrive) {
     }
 }
 
-async fn test_get_drive_error_unauthorized(_: &OneDrive) {
+#[tokio::test]
+async fn test_get_drive_error_unauthorized() {
     let one_drive = OneDrive::new("42".to_owned(), DriveLocation::me());
     let err = one_drive.get_drive().await.unwrap_err();
     assert_eq!(err.status_code(), Some(StatusCode::UNAUTHORIZED));
